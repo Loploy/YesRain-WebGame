@@ -171,9 +171,8 @@
     }).join('');
     byId('parts-help').textContent = state.completed ? '부품은 그대로 있어요. 다음 미션에서 다시 조립해요.' : lastFoundPart && Game.PARTS[lastFoundPart].slot === activeSlot ? `${Game.PARTS[lastFoundPart].name} 발견! 눌러서 장착해 보세요.` : '장착할 부품을 골라 주세요. 밑줄은 이번 미션에 필요한 특성이에요.';
     const allFound = state.owned.length === Object.keys(Game.PARTS).length;
-    byId('collect').disabled = allFound;
-    byId('collect-label').textContent = allFound ? '보급 완료' : '부품 보급';
-    byId('collect').setAttribute('aria-label', allFound ? '모든 부품 발견 완료' : `새 부품 보급 받기, 현재 ${state.owned.length}개 보유`);
+    byId('collect-label').textContent = allFound ? '부품 목록' : '부품 보급';
+    byId('collect').setAttribute('aria-label', allFound ? '모든 부품 보기' : `새 부품 보급 받기, 현재 ${state.owned.length}개 보유`);
   }
 
   /** 출동 결과는 팝업에 표시함. 완료한 결과는 다시 열어 확인할 수 있음. */
@@ -277,10 +276,15 @@
     showToast(`${part.name} 장착!`);
   }
 
-  /** 보급으로 받은 부품을 선택 창 맨 앞에 표시함. */
+  /** 전체 보유 상태에서는 목록을 엶. 수집 중이면 새 부품을 지급하고 맨 앞에 표시함. */
   function handleCollect() {
     const found = Game.collect(state);
-    if (!found.partId) return;
+    if (!found.partId) {
+      lastFoundPart = null;
+      renderParts();
+      openDialog('parts-dialog', `tab-${activeSlot}`);
+      return;
+    }
     lastFoundPart = found.partId;
     activeSlot = Game.PARTS[found.partId].slot;
     update(found.state);

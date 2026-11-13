@@ -1,6 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
 const Game = require('./game.js');
+const Data = require('./data.js');
+
+/** 전체 지급 전의 저장값과 수집 상태를 재현함. 이전 버전의 시작 부품 5개를 그대로 사용함. */
+function legacyState() {
+  return { ...Game.createState(), owned: ['dog', 'hand', 'road', 'legs', 'cargo'] };
+}
 
 /** 모든 부품을 보유한 상태에서 지정한 조립과 미션을 준비함. */
 function preparedState(missionId, body, arm, base) {
@@ -76,14 +84,14 @@ test('완료한 파견의 조립은 고정되고 다음 미션에서 변경 가�
 });
 
 test('없는 부품과 알 수 없는 부품·미션은 상태를 변경하지 않음', () => {
-  const initial = Game.createState();
+  const initial = legacyState();
   assert.strictEqual(Game.equip(initial, 'sealed'), initial);
   assert.strictEqual(Game.equip(initial, 'constructor'), initial);
   assert.strictEqual(Game.selectMission(initial, 'unknown'), initial);
 });
 
 test('보급은 매번 미보유 부품을 지급하고 전부 찾으면 종료됨', () => {
-  let state = Game.createState();
+  let state = legacyState();
   const expected = Object.keys(Game.PARTS).length;
   while (state.owned.length < expected) {
     const found = Game.collect(state, 0.5);
@@ -97,13 +105,12 @@ test('보급은 매번 미보유 부품을 지급하고 전부 찾으면 종료�
 
 test('보급 난수의 경곗값도 유효한 부품으로 처리됨', () => {
   for (const roll of [-1, 0, 1, 10, NaN, Infinity]) {
-    assert.ok(Object.hasOwn(Game.PARTS, Game.collect(Game.createState(), roll).partId));
+    assert.ok(Object.hasOwn(Game.PARTS, Game.collect(legacyState(), roll).partId));
   }
 });
 
 test('조립·선택 미션·보유 부품·잔액을 저장하고 복원함', () => {
-  const collected = Game.collect(Game.createState(), 0).state;
-  const state = Game.selectMission(Game.equip(collected, 'cargo'), 'escort');
+  const state = Game.selectMission(Game.equip(Game.createState(), 'cargo'), 'escort');
   assert.deepEqual(Game.restoreState(JSON.stringify(state)), state);
 });
 
@@ -129,7 +136,65 @@ test('손상·이전 버전·잘못된 슬롯·음수 잔액은 안전한 시작
     JSON.stringify({ ...initial, owned: ['constructor', 'hand', 'road'] }),
     JSON.stringify({ ...initial, owned: [...initial.owned, 'dog'] }),
     JSON.stringify({ ...initial, equipped: { body: 'hand', arm: 'dog', base: 'road' } }),
-    JSON.stringify({ ...initial, equipped: { body: 'sealed', arm: 'hand', base: 'road' } })
+    JSON.stringify({ ...legacyState(), equipped: { body: 'sealed', arm: 'hand', base: 'road' } })
   ];
   for (const data of invalid) assert.deepEqual(Game.restoreState(data), initial);
+});
+
+test('테스트 시작 시 데이터 목록의 모든 부품을 지급하고 장착할 수 있음', () => {
+  const state = Game.createState();
+  assert.deepEqual(state.owned, Object.keys(Data.PARTS));
+  for (const [id, part] of Object.entries(Data.PARTS)) {
+    assert.equal(Game.equip(state, id).equipped[part.slot], id);
+  }
+});
+
+test('기존 저장 복원 시 전체 부품을 지급하면서 코인·조립·미션·완료 보상은 유지', () => {
+  const legacy = legacyState();
+  legacy.coins = 85;
+  legacy.equipped = { body: 'dog', arm: 'cargo', base: 'legs' };
+  const completed = Game.dispatch(legacy);
+  const restored = Game.restoreState(JSON.stringify(completed));
+  assert.deepEqual(restored.owned, Object.keys(Data.PARTS));
+  assert.equal(restored.coins, completed.coins);
+  assert.deepEqual(restored.equipped, completed.equipped);
+  assert.equal(restored.missionId, completed.missionId);
+  assert.equal(restored.run, completed.run);
+  assert.equal(restored.completed, true);
+  assert.deepEqual(restored.result, completed.result);
+  assert.equal(Game.dispatch(restored).coins, completed.coins);
+});
+
+test('목록에 새 부품을 추가하면 새 시작과 기존 진행에 자동 지급됨', () => {
+  Data.PARTS.testWheel = { ...Data.PARTS.road, name: '추가 부품 테스트' };
+  try {
+    assert.ok(Game.createState().owned.includes('testWheel'));
+    const restored = Game.restoreState(JSON.stringify({ ...legacyState(), coins: 85 }));
+    assert.ok(restored.owned.includes('testWheel'));
+    assert.equal(restored.coins, 85);
+  } finally {
+    delete Data.PARTS.testWheel;
+  }
+});
+
+test('전체 지급 설정을 끄면 시작 부품과 기존 보유 목록을 사용하는 수집 방식 유지', () => {
+  Data.SETTINGS.unlockAllParts = false;
+  try {
+    assert.deepEqual(Game.createState().owned, Data.STARTER_PARTS);
+    const collected = Game.collect(Game.createState(), 0).state;
+    assert.deepEqual(Game.restoreState(JSON.stringify(collected)), collected);
+  } finally {
+    Data.SETTINGS.unlockAllParts = true;
+  }
+});
+
+test('브라우저용 전역 모듈 경로도 같은 데이터로 전체 부품을 지급함', () => {
+  const browserGlobals = vm.createContext({});
+  for (const file of ['./data.js', './game.js']) {
+    vm.runInContext(fs.readFileSync(require.resolve(file), 'utf8'), browserGlobals);
+  }
+  const game = browserGlobals.YesRainGame;
+  assert.equal(game.PARTS, browserGlobals.YesRainData.PARTS);
+  assert.equal(game.createState().owned.length, Object.keys(Data.PARTS).length);
+  assert.equal(game.createState().missionId, Data.MISSIONS[0].id);
 });
