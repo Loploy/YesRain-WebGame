@@ -39,3 +39,12 @@
 - `git check-attr`로 일반 텍스트 LF와 Windows 명령 파일 CRLF 속성 확인.
 - 기존 `balance-calculator/`, `yesrain-web/`가 빈 폴더로 유지됨을 확인.
 - 실제 게임 코드가 없어 빌드·게임 기능·브라우저 테스트는 실행하지 않음.
+
+**원격 반영**
+
+- 최초 커밋 `511e2f3` 생성. 메시지는 `chore: YesRain 프로젝트 기본 세팅`임.
+- 첫 push는 GitHub 비공개 이메일 보호 오류 `GH007`로 거절됨.
+- 사용자의 재시도 요청 후 기존 커밋으로 `git push -u origin main` 성공.
+- 이메일 설정 변경과 커밋 재작성 없이 원격 반영 완료.
+- `git ls-remote origin refs/heads/main`으로 원격 `main`과 로컬 최초 커밋 해시 일치 확인.
+- `main`의 upstream이 `origin/main`으로 설정됨.
