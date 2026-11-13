@@ -1,0 +1,18 @@
+# 텍스트 파일의 저장소 줄바꿈을 LF로 통일함
+* text=auto eol=lf
+
+# Windows 명령 파일은 CRLF 사용
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 이미지 및 배포 자료는 원본 바이트 유지
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.woff binary
+*.woff2 binary

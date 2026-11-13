@@ -1,0 +1,24 @@
+# 웹 개발 의존성 및 생성 결과 제외
+node_modules/
+dist/
+build/
+coverage/
+.cache/
+.vite/
+*.tsbuildinfo
+
+# 로컬 환경 변수 제외. 값이 없는 예시 파일은 추적 가능함
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# 로그 및 운영체제 임시 파일 제외
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# 개인 IDE 설정 제외
+.idea/
+.vscode/
