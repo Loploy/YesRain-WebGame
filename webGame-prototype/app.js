@@ -7,6 +7,8 @@
   let storageWarning = false;
   let activeSlot = 'body';
   let toastTimer;
+  let lastFoundPart = null;
+  const dialogReturnFocus = new Map();
   let state = loadProgress();
 
   /** 고정된 화면 요소를 ID로 가져옴. */
@@ -114,83 +116,98 @@
     return `<span class="trait ${className}"><span aria-hidden="true">${matched ? '✓' : '−'}</span><span>${trait}</span></span>`;
   }
 
-  /** 선택한 미션의 조건과 전체 의뢰 목록을 표시함. */
+  /** 선택한 미션을 상단에 요약하고 상세·다른 미션은 선택 창에 표시함. */
   function renderMission() {
     const mission = Game.MISSIONS.find(mission => mission.id === state.missionId);
     const suitability = Game.evaluate(state.equipped, state.missionId);
-    byId('mission-count').textContent = `${String(Game.MISSIONS.length).padStart(2, '0')} 件`;
-    byId('mission-list').innerHTML = Game.MISSIONS.map((item, index) => `<button id="mission-${item.id}" class="mission-card" type="button" data-mission="${item.id}" aria-pressed="${item.id === state.missionId}"><span class="mission-icon">${missionIcon(item.icon)}</span><span><strong>${item.title}</strong><small>${item.id === state.missionId ? state.completed ? '✓ 파견 완료' : '선택한 의뢰' : `${String(index + 1).padStart(2, '0')} / ${item.place}`}</small></span></button>`).join('');
-    byId('mission-kicker').textContent = `${mission.tag} 의뢰 / ${mission.place}`;
+    byId('mission-count').textContent = `${Game.MISSIONS.length}개`;
+    byId('mission-icon').innerHTML = missionIcon(mission.icon);
     byId('mission-title').textContent = mission.title;
+    byId('open-missions').setAttribute('aria-label', `${mission.title}, 미션 선택 및 자세히 보기`);
+    byId('mission-list').innerHTML = Game.MISSIONS.map(item => `<button id="mission-${item.id}" class="mission-card" type="button" data-mission="${item.id}" aria-pressed="${item.id === state.missionId}"><span class="mission-icon">${missionIcon(item.icon)}</span><span><strong>${item.title}</strong><small>${item.id === state.missionId ? '✓ 현재 미션' : `${item.tag} · ${item.place}`}</small></span></button>`).join('');
+    byId('mission-kicker').textContent = `${mission.tag} · ${mission.place}`;
+    byId('mission-detail-title').textContent = mission.title;
     byId('mission-text').textContent = mission.text;
     byId('mission-hint').textContent = mission.hint;
-    byId('readiness-value').textContent = `${suitability.matched.length} / ${mission.needs.length} 충족`;
-    byId('readiness-fill').style.width = `${suitability.matched.length / mission.needs.length * 100}%`;
-    byId('requirements').innerHTML = mission.needs.map(need => traitChip(need, suitability.matched.includes(need))).join('');
-    byId('robot-status').textContent = state.completed ? '파견 완료 · 복귀함' : '파견 준비 중';
-    byId('dispatch').disabled = state.completed;
-    byId('dispatch').innerHTML = `<span>${state.completed ? '파견 완료 · 다음 의뢰를 골라 주세요' : '이 로봇으로 파견하기'}</span><span aria-hidden="true">${state.completed ? '✓' : '↗'}</span>`;
-    byId('dispatch-mobile').disabled = state.completed;
-    byId('dispatch-mobile').textContent = state.completed ? '파견 완료 · 보고서 확인' : `파견하기 · ${suitability.matched.length}/${mission.needs.length} 조건 충족 ↗`;
+    const chips = mission.needs.map(need => traitChip(need, suitability.matched.includes(need))).join('');
+    byId('requirements').innerHTML = chips;
+    byId('mission-detail-requirements').innerHTML = chips;
+    byId('readiness-value').textContent = `${suitability.matched.length}/${mission.needs.length} 준비`;
+    byId('robot-status').textContent = state.completed ? '출동 완료! 로봇이 돌아왔어요' : suitability.missing.length ? '파견 준비 중' : '준비 완료! 출동해 볼까요?';
+    byId('dispatch').innerHTML = `<span>${state.completed ? '다음 미션' : '파견하기'}<small>${state.completed ? '새로운 곳으로 출동해요' : `${suitability.matched.length}/${mission.needs.length} 특성 충족`}</small></span><span class="dispatch-arrow" aria-hidden="true">${state.completed ? '→' : '↗'}</span>`;
+    byId('open-result').hidden = !state.completed;
   }
 
-  /** 선택한 세 부품을 하나의 로봇으로 그려 조립 상태를 보여줌. */
+  /** 로봇을 무대 중앙에 그리고 세 개의 부품 슬롯을 하단 플로팅 버튼으로 표시함. */
   function renderRobot() {
     const body = Game.PARTS[state.equipped.body];
     const arm = Game.PARTS[state.equipped.arm];
     const base = Game.PARTS[state.equipped.base];
-    byId('robot-preview').innerHTML = `<svg viewBox="0 0 480 350" aria-hidden="true"><ellipse cx="246" cy="301" rx="155" ry="15" fill="#0b120c" opacity=".6"/><path d="M76 302h332" stroke="#7f9a5f" stroke-width="1" stroke-dasharray="3 8"/>${drawBase(base)}${drawBody(body)}${drawArm(arm)}</svg>`;
-    byId('robot-preview').setAttribute('aria-label', `${body.name}, ${arm.name}, ${base.name} 조합의 로봇 미리보기`);
-    byId('equipment-summary').innerHTML = Object.entries(Game.SLOTS).map(([slot, label]) => `<button id="equipment-${slot}" class="equipment-card" data-equipment="${slot}" type="button" aria-label="${label} ${Game.PARTS[state.equipped[slot]].name}, 부품 변경"><span>${label} ↗</span><strong>${Game.PARTS[state.equipped[slot]].name}</strong></button>`).join('');
+    byId('robot-preview').innerHTML = `<svg viewBox="80 55 335 265" aria-hidden="true">${drawBase(base)}${drawBody(body)}${drawArm(arm)}</svg>`;
+    byId('robot-preview').setAttribute('aria-label', `${body.name}, ${arm.name}, ${base.name} 조합의 로봇`);
+    byId('equipment-summary').innerHTML = Object.entries(Game.SLOTS).map(([slot, label]) => {
+      const part = Game.PARTS[state.equipped[slot]];
+      return `<button id="equipment-${slot}" class="equipment-card" data-equipment="${slot}" type="button" aria-haspopup="dialog" aria-controls="parts-dialog" aria-label="${label}: ${part.name}, 바꾸기" title="${part.name}" ${state.completed ? 'disabled' : ''}><span class="slot-art">${partArtwork(part)}</span><span class="slot-label">${label}<span aria-hidden="true">↻</span></span><small>${part.name}</small></button>`;
+    }).join('');
   }
 
-  /** 보유 여부와 장착 상태를 표시함. 미발견 부품과 완료한 파견의 부품은 선택할 수 없음. */
+  /** 부품은 선택 창 안에서만 나열함. 보유·새 부품을 먼저 표시하고 필요한 특성을 강조함. */
   function renderParts() {
-    byId('part-count').textContent = `${state.owned.length} / ${Object.keys(Game.PARTS).length}`;
+    const mission = Game.MISSIONS.find(mission => mission.id === state.missionId);
+    byId('part-count').textContent = `${state.owned.length}/${Object.keys(Game.PARTS).length}`;
     for (const tab of byId('part-tabs').querySelectorAll('[data-slot]')) {
       const selected = tab.dataset.slot === activeSlot;
       tab.setAttribute('aria-selected', String(selected));
       tab.tabIndex = selected ? 0 : -1;
     }
     byId('parts-grid').setAttribute('aria-labelledby', `tab-${activeSlot}`);
-    byId('parts-grid').innerHTML = Object.entries(Game.PARTS).filter(([, part]) => part.slot === activeSlot).map(([id, part]) => {
+    const parts = Object.entries(Game.PARTS).filter(([, part]) => part.slot === activeSlot);
+    parts.sort(([a], [b]) => Number(b === lastFoundPart) - Number(a === lastFoundPart) || Number(state.owned.includes(b)) - Number(state.owned.includes(a)));
+    byId('parts-grid').innerHTML = parts.map(([id, part]) => {
       const owned = state.owned.includes(id);
       const equipped = state.equipped[activeSlot] === id;
-      return `<button id="part-${id}" class="part-card ${owned ? '' : 'locked'}" data-part="${id}" type="button" aria-pressed="${equipped}" ${!owned || state.completed ? 'disabled' : ''}><span class="part-art">${partArtwork(part)}</span><span><span class="part-card-head"><strong>${part.name}</strong><span class="part-badge">${equipped ? '✓ 장착' : owned ? '보유' : '미발견'}</span></span><span class="part-traits">${part.traits.join(' · ')}</span><small>${part.note}</small></span></button>`;
+      const traits = part.traits.map(trait => `<span class="${mission.needs.includes(trait) ? 'relevant' : ''}">${trait}</span>`).join('');
+      return `<button id="part-${id}" class="part-card ${owned ? '' : 'locked'} ${id === lastFoundPart ? 'just-found' : ''}" data-part="${id}" type="button" aria-pressed="${equipped}" ${!owned || state.completed ? 'disabled' : ''}><span class="part-art">${partArtwork(part)}</span><span><span class="part-card-head"><strong>${part.name}</strong><span class="part-badge">${id === lastFoundPart ? '새 부품!' : equipped ? '✓ 장착' : owned ? '장착하기' : '미발견'}</span></span><span class="part-traits">${traits}</span><small>${part.note}</small></span></button>`;
     }).join('');
-    byId('parts-help').textContent = state.completed ? '복귀한 부품은 그대로 있어요. 다른 의뢰를 고르면 다시 조립할 수 있어요.' : '부품을 누르면 바로 장착돼요. 미발견 부품은 보급 상자에서 얻어요.';
-    byId('collect').disabled = state.owned.length === Object.keys(Game.PARTS).length;
-    byId('collect').textContent = byId('collect').disabled ? '모든 부품을 발견했어요 ✓' : '테스트 보급 상자 열기 ↗';
+    byId('parts-help').textContent = state.completed ? '부품은 그대로 있어요. 다음 미션에서 다시 조립해요.' : lastFoundPart && Game.PARTS[lastFoundPart].slot === activeSlot ? `${Game.PARTS[lastFoundPart].name} 발견! 눌러서 장착해 보세요.` : '장착할 부품을 골라 주세요. 밑줄은 이번 미션에 필요한 특성이에요.';
+    const allFound = state.owned.length === Object.keys(Game.PARTS).length;
+    byId('collect').disabled = allFound;
+    byId('collect-label').textContent = allFound ? '보급 완료' : '부품 보급';
+    byId('collect').setAttribute('aria-label', allFound ? '모든 부품 발견 완료' : `새 부품 보급 받기, 현재 ${state.owned.length}개 보유`);
   }
 
-  /** 현재 파견의 고정된 결과만 보여줌. 다음 미션을 고르면 이전 결과를 비움. */
+  /** 출동 결과는 팝업에 표시함. 완료한 결과는 다시 열어 확인할 수 있음. */
   function renderResult() {
-    byId('next-mission').hidden = !state.completed;
+    byId('next-mission').disabled = !state.completed;
     if (!state.result) {
-      byId('result').innerHTML = '<div class="empty-result"><span class="report-icon" aria-hidden="true">↗</span><div><strong>로봇의 첫 출동을 기다리고 있어요.</strong><p>파견 후 충족한 조건, 부족한 조건과 받은 코인을 확인할 수 있어요.</p></div></div>';
+      byId('result').innerHTML = '<p class="report-footnote">아직 출동 전이에요. 로봇을 준비하고 파견해 보세요.</p>';
       return;
     }
     const result = state.result;
     const mission = Game.MISSIONS.find(mission => mission.id === result.missionId);
-    const matched = result.matched.length ? result.matched.map(trait => traitChip(trait, true, true)).join('') : '<p>아직 충족한 조건이 없어요.</p>';
-    const missing = result.missing.length ? result.missing.map(trait => traitChip(trait, false, true)).join('') : '<p>모든 조건을 충족했어요. 멋진 조합이에요!</p>';
-    byId('result').innerHTML = `<div class="report-summary"><div><h3>${result.missing.length ? result.matched.length ? '도움이 됐어요. 조금 더 보완해 볼까요?' : '이번 의뢰에는 다른 부품이 필요해요.' : '임무 완료! 꼭 맞는 로봇을 보냈어요.'}</h3><p>${mission.title} · ${result.matched.length}/${mission.needs.length} 조건 충족</p></div><div class="report-coins">+${result.reward}<small> 코인</small></div></div><div class="report-details"><div><h4>✓ 충족한 조건</h4><div class="requirements">${matched}</div></div><div><h4>− 보완할 조건</h4><div class="requirements">${missing}</div></div></div><p class="report-footnote">보상이 반영됐어요. 복귀한 부품은 소모되지 않아요. 다른 의뢰를 선택하거나 다음 의뢰를 받아 보세요.</p>`;
+    const matched = result.matched.length ? result.matched.map(trait => traitChip(trait, true, true)).join('') : '<p>충족한 조건이 없어요.</p>';
+    const missing = result.missing.length ? result.missing.map(trait => traitChip(trait, false, true)).join('') : '<p>모든 조건을 충족했어요!</p>';
+    const title = result.missing.length ? result.matched.length ? '도움이 됐어요!' : '다른 조합이 필요해요' : '딱 맞는 로봇! 임무 완료';
+    byId('result').innerHTML = `<div class="result-emblem" aria-hidden="true">${result.missing.length ? '↗' : '✓'}</div><div class="report-summary"><h3>${title}</h3><p>${mission.title} · ${result.matched.length}/${mission.needs.length} 조건 충족</p><div class="report-coins">+${result.reward}<small> 코인</small></div></div><div class="report-details"><div><h4>✓ 충족한 조건</h4><div class="requirements">${matched}</div></div><div><h4>− 보완할 조건</h4><div class="requirements">${missing}</div></div></div><p class="report-footnote">보상이 반영됐어요. 부품은 다음 미션에도 쓸 수 있어요.</p>`;
   }
 
-  /** 전체 상태를 표시한 뒤 재생성된 선택 버튼의 키보드 포커스를 유지함. */
+  /** 화면 갱신 후 동일한 버튼으로 키보드 포커스를 되돌림. 열린 팝업 밖으로 포커스를 옮기지 않음. */
   function render() {
-    const focusedId = document.activeElement.id;
-    byId('coins').innerHTML = `${state.coins.toLocaleString('ko-KR')} <small>코인</small>`;
+    const focusedId = document.activeElement?.id;
+    byId('coins').textContent = state.coins.toLocaleString('ko-KR');
+    byId('coins').title = `${state.coins.toLocaleString('ko-KR')} 테스트 코인`;
     renderMission();
     renderRobot();
     renderParts();
     renderResult();
-    byId('save-status').textContent = storageWarning ? '저장할 수 없는 브라우저예요. 창을 닫으면 진행이 사라질 수 있어요.' : '이 브라우저에 자동 저장 · 같은 주소로 다시 접속해요.';
+    byId('save-status').textContent = storageWarning ? '저장할 수 없어요. 창을 닫으면 진행이 사라질 수 있어요.' : '이 브라우저에 자동 저장 · 테스트 플레이';
     byId('save-status').classList.toggle('warning', storageWarning);
-    if (focusedId) byId(focusedId)?.focus({ preventScroll: true });
+    const focused = focusedId && byId(focusedId);
+    const dialog = document.querySelector('dialog[open]');
+    if (focused && !focused.disabled && (!dialog || dialog.contains(focused))) focused.focus({ preventScroll: true });
   }
 
-  /** 상태 변경마다 저장 후 화면을 갱신함. 같은 파견의 재요청은 상태를 바꾸지 않음. */
+  /** 게임 상태를 저장한 뒤 표시함. UI 개편에서도 기존 저장키·데이터 형식을 유지함. */
   function update(nextState) {
     if (nextState === state) return;
     state = nextState;
@@ -198,58 +215,115 @@
     render();
   }
 
-  /** 부품 탭 전환. 조립 요약에서 접근하면 보관함으로 스크롤함. */
-  function setSlot(slot, scroll = false) {
-    if (!Object.hasOwn(Game.SLOTS, slot)) return;
-    activeSlot = slot;
-    renderParts();
-    if (scroll) {
-      byId(`tab-${slot}`).focus({ preventScroll: true });
-      byId('part-tabs').scrollIntoView({ block: 'start' });
-    }
+  /** 팝업을 모달로 열어 배경 조작을 막음. 닫을 때 복귀할 버튼 ID를 보관함. */
+  function openDialog(id, focusId) {
+    const dialog = byId(id);
+    if (dialog.open) return;
+    dialogReturnFocus.set(id, document.activeElement?.id || 'dispatch');
+    dialog.showModal();
+    dialog.querySelector('.dialog-body').scrollTop = 0;
+    const target = focusId && byId(focusId);
+    if (target && !target.disabled) target.focus({ preventScroll: true });
   }
 
-  /** 미션 카드 선택을 새 파견 준비 상태로 연결함. */
+  /** 페이지 스크롤 없이 현재 팝업을 닫음. */
+  function closeDialog(id) {
+    const dialog = byId(id);
+    if (dialog.open) dialog.close();
+  }
+
+  /** 닫기 버튼과 바깥 영역 터치를 처리함. 팝업 안쪽의 빈 공간 터치는 닫기로 오인하지 않음. */
+  function handleDialogClick(event) {
+    const dialog = event.currentTarget;
+    const button = event.target.closest('[data-close]');
+    if (button) {
+      closeDialog(button.dataset.close);
+      return;
+    }
+    if (event.target !== dialog) return;
+    const box = dialog.getBoundingClientRect();
+    if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeDialog(dialog.id);
+  }
+
+  /** 닫기·Escape 이후 팝업을 열었던 버튼으로 복귀함. */
+  function handleDialogClose(event) {
+    const id = event.currentTarget.id;
+    if (id === 'parts-dialog') lastFoundPart = null;
+    const returnId = dialogReturnFocus.get(id);
+    dialogReturnFocus.delete(id);
+    if (!document.querySelector('dialog[open]')) byId(returnId)?.focus({ preventScroll: true });
+  }
+
+  /** 상단 미션 버튼에서 상세 설명과 의뢰 목록을 엶. */
+  function handleOpenMissions() {
+    openDialog('missions-dialog');
+  }
+
+  /** 다른 미션을 선택하면 새 출동을 준비하고 무대로 복귀함. */
   function handleMissionClick(event) {
     const button = event.target.closest('[data-mission]');
-    if (button) update(Game.selectMission(state, button.dataset.mission));
+    if (!button) return;
+    update(Game.selectMission(state, button.dataset.mission));
+    closeDialog('missions-dialog');
   }
 
-  /** 선택한 보유 부품을 장착함. */
+  /** 부품을 장착하면 선택 창을 닫고 바뀐 로봇을 바로 보여줌. */
   function handlePartClick(event) {
     const button = event.target.closest('[data-part]');
-    if (button && !button.disabled) update(Game.equip(state, button.dataset.part));
+    if (!button || button.disabled) return;
+    const part = Game.PARTS[button.dataset.part];
+    update(Game.equip(state, button.dataset.part));
+    closeDialog('parts-dialog');
+    showToast(`${part.name} 장착!`);
   }
 
-  /** 보급 버튼에서 미발견 부품을 받고 해당 슬롯을 열어 확인하게 함. */
+  /** 보급으로 받은 부품을 선택 창 맨 앞에 표시함. */
   function handleCollect() {
     const found = Game.collect(state);
     if (!found.partId) return;
+    lastFoundPart = found.partId;
     activeSlot = Game.PARTS[found.partId].slot;
     update(found.state);
-    showToast(`${Game.PARTS[found.partId].name} 발견! 부품 보관함에 추가했어요.`);
+    openDialog('parts-dialog', state.completed ? `tab-${activeSlot}` : `part-${found.partId}`);
   }
 
-  /** 파견 결과를 저장한 뒤 보고서로 이동함. */
-  function handleDispatch() {
-    if (state.completed) return;
+  /** 주요 버튼의 행동은 준비 중에는 파견, 완료 후에는 다음 미션으로 연결함. */
+  function handlePrimaryAction() {
+    if (state.completed) {
+      handleNextMission();
+      return;
+    }
     update(Game.dispatch(state));
-    byId('result-section').scrollIntoView({ block: 'nearest' });
+    openDialog('result-dialog', 'next-mission');
   }
 
-  /** 다음 의뢰에서도 보유 부품을 그대로 사용함. */
+  /** 이미 받은 결과를 다시 확인함. 보상 지급 함수를 호출하지 않음. */
+  function handleOpenResult() {
+    if (state.completed) openDialog('result-dialog', 'next-mission');
+  }
+
+  /** 다음 미션으로 이동하고 결과 창을 닫음. */
   function handleNextMission() {
     update(Game.nextMission(state));
-    byId('mission-title').scrollIntoView({ block: 'start' });
+    closeDialog('result-dialog');
   }
 
-  /** 마우스나 터치로 부품 종류를 선택함. */
+  /** 선택 창 안에서 탭만 바꾸고 긴 목록의 스크롤을 처음으로 돌림. */
+  function setSlot(slot) {
+    if (!Object.hasOwn(Game.SLOTS, slot)) return;
+    activeSlot = slot;
+    lastFoundPart = null;
+    renderParts();
+    byId('parts-grid').closest('.dialog-body').scrollTop = 0;
+  }
+
+  /** 부품 종류 탭의 터치·클릭을 처리함. */
   function handleTabClick(event) {
     const tab = event.target.closest('[data-slot]');
     if (tab) setSlot(tab.dataset.slot);
   }
 
-  /** 표준 탭 키보드 조작을 지원함. 화살표·Home·End로 탭을 이동함. */
+  /** 화살표·Home·End 키로 부품 탭을 이동함. */
   function handleTabKey(event) {
     const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
     if (!keys.includes(event.key)) return;
@@ -261,29 +335,37 @@
     byId(`tab-${slots[next]}`).focus();
   }
 
-  /** 조립 요약을 누르면 해당 부품 종류의 보관함으로 이동함. */
+  /** 로봇 아래 부품 슬롯에서 해당 종류의 선택 창을 엶. */
   function handleEquipmentClick(event) {
     const button = event.target.closest('[data-equipment]');
-    if (button) setSlot(button.dataset.equipment, true);
+    if (!button || button.disabled) return;
+    setSlot(button.dataset.equipment);
+    openDialog('parts-dialog', `tab-${activeSlot}`);
   }
 
-  /** 같은 주소의 다른 탭에서 저장한 진행을 반영함. 서버 동기화나 실제 잔액 보장은 아님. */
+  /** 같은 주소의 다른 창에서 변경한 진행을 반영함. 결과가 없어진 경우 열린 결과 창도 닫음. */
   function handleStorage(event) {
     if (event.key !== storageKey) return;
     state = Game.restoreState(event.newValue);
     render();
-    showToast('다른 창에서 변경한 진행을 반영했어요.');
+    if (!state.completed) closeDialog('result-dialog');
+    showToast('다른 창의 진행을 반영했어요.');
   }
 
+  byId('open-missions').addEventListener('click', handleOpenMissions);
   byId('mission-list').addEventListener('click', handleMissionClick);
   byId('parts-grid').addEventListener('click', handlePartClick);
   byId('collect').addEventListener('click', handleCollect);
-  byId('dispatch').addEventListener('click', handleDispatch);
-  byId('dispatch-mobile').addEventListener('click', handleDispatch);
+  byId('dispatch').addEventListener('click', handlePrimaryAction);
+  byId('open-result').addEventListener('click', handleOpenResult);
   byId('next-mission').addEventListener('click', handleNextMission);
   byId('part-tabs').addEventListener('click', handleTabClick);
   byId('part-tabs').addEventListener('keydown', handleTabKey);
   byId('equipment-summary').addEventListener('click', handleEquipmentClick);
+  for (const dialog of document.querySelectorAll('dialog')) {
+    dialog.addEventListener('click', handleDialogClick);
+    dialog.addEventListener('close', handleDialogClose);
+  }
   window.addEventListener('storage', handleStorage);
   render();
 })();

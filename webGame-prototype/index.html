@@ -2,62 +2,96 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101713">
-  <meta name="description" content="부품을 조립하고, 도움이 필요한 곳으로. YesRain 로봇 공방 프로토타입.">
+  <meta name="description" content="부품을 바꾸고, 도움이 필요한 곳으로! YesRain 로봇 공방.">
   <title>YesRain — 로봇 공방</title>
   <link rel="stylesheet" href="styles.css">
   <script src="game.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">공방으로 바로 가기</a>
-  <header class="topbar">
-    <a class="brand" href="#main" aria-label="YesRain 로봇 공방">
-      <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M9 12h22v22H9zM15 5v7m10-7v7M4 20h5m22 0h5"/><path d="M15 20v5m10-5v5M15 29h10"/></svg>
-      <span>YESRAIN<span class="brand-sub">NIVIS ROBOT WORKSHOP</span></span>
-    </a>
-    <div class="wallet"><span class="coin-mark" aria-hidden="true">Y</span><div><span class="wallet-label">테스트 코인</span><strong id="coins" aria-live="polite">0 <small>코인</small></strong></div></div>
-  </header>
+  <main id="main" class="game-screen">
+    <h1 class="sr-only">YesRain 로봇 공방</h1>
+    <svg class="world-art" viewBox="0 0 1440 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#102b25"/><stop offset="1" stop-color="#53664a"/></linearGradient>
+        <linearGradient id="ground" x2="0" y2="1"><stop stop-color="#43573a"/><stop offset="1" stop-color="#162c22"/></linearGradient>
+        <pattern id="floor" width="120" height="80" patternUnits="userSpaceOnUse" patternTransform="skewX(-25)"><path d="M0 0h120v80" fill="none" stroke="#c9daa1" stroke-opacity=".05" stroke-width="2"/></pattern>
+      </defs>
+      <path fill="url(#sky)" d="M0 0h1440v1000H0z"/>
+      <circle cx="1110" cy="210" r="165" fill="#e8efbb" opacity=".05"/>
+      <path d="m0 455 230-170 184 120 215-160 204 172 208-117 399 174v526H0z" fill="#163f32" opacity=".8"/>
+      <path d="m0 570 215-151 231 117 265-112 244 90 234-132 251 158v460H0z" fill="#254b36"/>
+      <path d="M0 650q320-110 720-30t720-25v405H0z" fill="url(#ground)"/>
+      <path d="m0 722 720-135 720 135v278H0z" fill="#334933"/>
+      <path d="m0 722 720-135 720 135v278H0z" fill="url(#floor)"/>
+      <g fill="#112d23" opacity=".8">
+        <path d="M78 646V377l-69 151h42L0 620h56v37zm128-3V303L105 489h55L88 602h92v53zM1329 643V339l-96 174h57l-69 98h80v41zm97 16V444l-58 115h29l-43 66h54v31z"/>
+        <path d="m266 676 40-84 53 85zm850-8 52-102 39 104z"/>
+      </g>
+      <g fill="#bad188" opacity=".2"><ellipse cx="355" cy="730" rx="28" ry="8"/><ellipse cx="1132" cy="783" rx="46" ry="12"/><path d="m298 691 12-26 11 25zm875 39 14-34 13 35z"/></g>
+    </svg>
+    <div class="world-vignette" aria-hidden="true"></div>
 
-  <main id="main" class="shell">
-    <div class="page-heading"><div><p class="eyebrow">BUILD A ROBOT. MAKE A DIFFERENCE.</p><h1>누군가를 도울 <span>나만의 로봇.</span></h1><p class="intro">의뢰를 고르고, 부품을 바꾸고, 도움이 필요한 곳으로 보내세요.</p></div><span class="prototype-label"><i></i> 플레이 프로토타입 01</span></div>
-    <div class="workshop-layout">
-      <aside class="mission-board panel" aria-labelledby="board-title">
-        <div class="section-heading"><div><p class="eyebrow">01 / MISSION BOARD</p><h2 id="board-title">도움이 필요한 곳</h2></div><span id="mission-count" class="count-label"></span></div>
-        <div id="mission-list" class="mission-list" aria-label="미션 선택"></div>
-        <div class="board-note"><span class="status-dot"></span><p>정답은 하나가 아니에요.<br>부품의 <strong>특성</strong>을 보고 조합해 보세요.</p></div>
-      </aside>
+    <header class="top-hud">
+      <div class="hud-row">
+        <button id="open-missions" class="mission-trigger floating" type="button" aria-haspopup="dialog" aria-controls="missions-dialog">
+          <span id="mission-icon" class="mission-icon" aria-hidden="true"></span>
+          <span class="mission-trigger-copy"><span class="hud-caption">미션 선택 <span aria-hidden="true">⌄</span></span><strong id="mission-title"></strong></span>
+        </button>
+        <div class="wallet floating"><span class="coin-mark" aria-hidden="true">Y</span><div><strong id="coins" aria-live="polite">0</strong><small>테스트 코인</small></div></div>
+      </div>
+      <div class="mission-brief"><div class="brief-heading"><span>필요한 특성</span><strong id="readiness-value" aria-live="polite"></strong></div><div id="requirements" class="requirements"></div></div>
+    </header>
 
-      <section class="assembly panel" aria-labelledby="assembly-title">
-        <div class="section-heading"><div><p class="eyebrow">02 / ASSEMBLY STATION</p><h2 id="assembly-title">로봇 조립대</h2></div><span id="robot-status" class="status-label">파견 준비 중</span></div>
-        <div class="robot-stage"><div class="stage-top"><span>WORKBENCH / R-01</span><span>LIVE PREVIEW <i></i></span></div><div id="robot-preview" class="robot-preview" role="img" aria-label="선택한 부품으로 조립한 로봇"></div><div class="stage-bottom"><span>부품을 바꾸면 모습도 달라져요</span><span>+ + +</span></div></div>
-        <div id="equipment-summary" class="equipment-summary"></div>
-        <div class="active-mission">
-          <div class="mission-meta"><span id="mission-kicker"></span><span>최대 <strong>60</strong> 코인</span></div>
-          <h3 id="mission-title"></h3><p id="mission-text"></p>
-          <div class="requirements-heading"><span>이번 로봇에 필요한 특성</span><strong id="readiness-value"></strong></div>
-          <div class="readiness-track" aria-hidden="true"><div id="readiness-fill"></div></div>
-          <div id="requirements" class="requirements"></div><p id="mission-hint" class="mission-hint"></p>
-          <button id="dispatch" class="button primary dispatch-button" type="button"><span>이 로봇으로 파견하기</span><span aria-hidden="true">↗</span></button>
-          <p class="reward-note">조건 0개 · 0코인 / 일부 충족 · 25코인 / 모두 충족 · 60코인</p>
-        </div>
-      </section>
+    <section class="play-field" aria-label="로봇 조립 무대">
+      <span class="workshop-sign" aria-hidden="true">YESRAIN <span>로봇 공방</span></span>
+      <div class="stage-center">
+        <div class="launch-pad" aria-hidden="true"></div>
+        <div id="robot-preview" class="robot-preview" role="img" aria-label="조립한 로봇"></div>
+        <span id="robot-status" class="robot-status">파견 준비 중</span>
+      </div>
+      <button id="collect" class="field-button supply-button floating" type="button" aria-haspopup="dialog" aria-controls="parts-dialog">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><path d="m6 13 14-7 14 7v19l-14 7-14-7z" fill="#d9eca4"/><path d="m6 13 14 7 14-7M20 20v19M13 9l14 7v9" fill="none" stroke="#536137" stroke-width="2.5" stroke-linejoin="round"/><path d="M20 1v7m-4-4h8" stroke="#f2ffc6" stroke-width="2.5"/></svg>
+        <strong id="collect-label">부품 보급</strong><small id="part-count"></small>
+      </button>
+      <button id="open-result" class="field-button report-button floating" type="button" aria-haspopup="dialog" aria-controls="result-dialog" hidden><span class="report-symbol" aria-hidden="true">✓</span><strong>보고서</strong></button>
+    </section>
 
-      <aside class="parts-panel panel" aria-labelledby="parts-title">
-        <div class="section-heading"><div><p class="eyebrow">03 / PARTS LIBRARY</p><h2 id="parts-title">부품 보관함</h2></div><span id="part-count" class="count-label"></span></div>
-        <div class="supply-box"><div><span class="supply-icon" aria-hidden="true">＋</span><div><strong>새로운 가능성, 부품 하나.</strong><p>아직 없는 부품을 하나씩 찾아요.</p></div></div><button id="collect" class="button supply-button" type="button">테스트 보급 상자 열기 <span aria-hidden="true">↗</span></button></div>
-        <div id="part-tabs" class="part-tabs" role="tablist" aria-label="부품 종류"><button id="tab-body" type="button" role="tab" aria-controls="parts-grid" aria-selected="true" tabindex="0" data-slot="body">몸통</button><button id="tab-arm" type="button" role="tab" aria-controls="parts-grid" aria-selected="false" tabindex="-1" data-slot="arm">팔·장비</button><button id="tab-base" type="button" role="tab" aria-controls="parts-grid" aria-selected="false" tabindex="-1" data-slot="base">이동 장치</button></div>
-        <div id="parts-grid" class="parts-grid" role="tabpanel" aria-labelledby="tab-body"></div>
-        <p id="parts-help" class="parts-help">부품을 누르면 로봇에 바로 장착돼요.</p>
-        <button id="dispatch-mobile" class="button primary mobile-dispatch" type="button">이 로봇으로 파견하기 <span aria-hidden="true">↗</span></button>
-      </aside>
-
-      <section id="result-section" class="result-section panel" aria-labelledby="result-title"><div class="section-heading"><div><p class="eyebrow">04 / FIELD REPORT</p><h2 id="result-title">파견 보고서</h2></div><span class="count-label">RESULT</span></div><div id="result" aria-live="polite"></div><button id="next-mission" class="button next-button" type="button" hidden>다음 의뢰 받기 <span aria-hidden="true">→</span></button></section>
-    </div>
-    <footer class="footer"><span>YESRAIN / 함께 만드는 작은 가능성</span><span id="save-status" role="status">이 브라우저에 진행 상황을 저장해요.</span><span>게임용 코인 · 실제 축제 잔액과 별도</span></footer>
+    <footer class="control-dock">
+      <div id="equipment-summary" class="equipment-summary" aria-label="장착 부품 변경"></div>
+      <button id="dispatch" class="dispatch-button" type="button"></button>
+      <p id="save-status" class="save-status" role="status">이 브라우저에 자동 저장</p>
+    </footer>
   </main>
+
+  <dialog id="missions-dialog" class="game-dialog" aria-labelledby="missions-title">
+    <header class="dialog-header"><div><p class="dialog-kicker">도움이 필요한 곳</p><h2 id="missions-title">어디로 출동할까?</h2></div><button class="close-button" data-close="missions-dialog" type="button" aria-label="미션 선택 닫기">×</button></header>
+    <div class="dialog-body">
+      <div class="mission-detail"><span id="mission-kicker" class="detail-label"></span><h3 id="mission-detail-title"></h3><p id="mission-text"></p><div id="mission-detail-requirements" class="requirements"></div><p id="mission-hint" class="mission-hint"></p></div>
+      <div class="list-heading"><span>다른 미션 고르기</span><span id="mission-count"></span></div>
+      <div id="mission-list" class="mission-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="parts-dialog" class="game-dialog parts-dialog" aria-labelledby="parts-title">
+    <header class="dialog-header"><div><p class="dialog-kicker">나만의 조합을 찾아봐요</p><h2 id="parts-title">부품 고르기</h2></div><button class="close-button" data-close="parts-dialog" type="button" aria-label="부품 선택 닫기">×</button></header>
+    <div id="part-tabs" class="part-tabs" role="tablist" aria-label="부품 종류">
+      <button id="tab-body" type="button" role="tab" aria-controls="parts-grid" aria-selected="true" tabindex="0" data-slot="body">몸통</button>
+      <button id="tab-arm" type="button" role="tab" aria-controls="parts-grid" aria-selected="false" tabindex="-1" data-slot="arm">팔·장비</button>
+      <button id="tab-base" type="button" role="tab" aria-controls="parts-grid" aria-selected="false" tabindex="-1" data-slot="base">이동 장치</button>
+    </div>
+    <div class="dialog-body"><p id="parts-help" class="parts-help" role="status"></p><div id="parts-grid" class="parts-grid" role="tabpanel" aria-labelledby="tab-body"></div></div>
+  </dialog>
+
+  <dialog id="result-dialog" class="game-dialog result-dialog" aria-labelledby="result-title">
+    <header class="dialog-header"><div><p class="dialog-kicker">로봇이 돌아왔어요</p><h2 id="result-title">출동 결과</h2></div><button class="close-button" data-close="result-dialog" type="button" aria-label="출동 결과 닫기">×</button></header>
+    <div class="dialog-body"><div id="result" aria-live="polite"></div></div>
+    <div class="dialog-actions"><button id="next-mission" class="action-button" type="button">다음 미션 <span aria-hidden="true">→</span></button></div>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <noscript><p class="noscript">이 프로토타입을 플레이하려면 브라우저의 JavaScript를 켜 주세요.</p></noscript>
+  <noscript><p class="noscript">게임을 플레이하려면 JavaScript를 켜 주세요.</p></noscript>
 </body>
 </html>
